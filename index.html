@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berlin Air Quality Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <aside class="rail">
+    <div class="brand">
+      <span class="mark">BA</span>
+      <div>
+        <strong>Berlin Air</strong>
+        <small data-i18n="brand.subtitle">Official monitoring dashboard</small>
+      </div>
+    </div>
+    <nav aria-label="Dashboard pages">
+      <button class="nav-item active" type="button" data-page="overview" data-i18n="nav.overview">Overview</button>
+      <button class="nav-item" type="button" data-page="stations" data-i18n="nav.stations">Stations</button>
+      <button class="nav-item" type="button" data-page="trends" data-i18n="nav.trends">Trends</button>
+      <button class="nav-item" type="button" data-page="limits" data-i18n="nav.limits">Limits</button>
+      <button class="nav-item" type="button" data-page="weather" data-i18n="nav.weather">Weather</button>
+      <button class="nav-item" type="button" data-page="alerts" data-i18n="nav.alerts">Alerts</button>
+    </nav>
+    <div class="source-note">
+      <span data-i18n="source.label">Live data</span>
+      <strong>luftdaten.berlin.de API</strong>
+      <small data-i18n="source.note">Berliner Luftgütemessnetz, SenMVKU. Map tiles by OpenStreetMap.</small>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="pageEyebrow">Live public data</p>
+        <h1 id="pageTitle">Berlin Air Quality Monitor</h1>
+        <p class="subtitle" id="pageSubtitle">Official station readings, air-quality index, weather context, exceedances and alerts in one operational view.</p>
+      </div>
+      <div class="toolbar">
+        <label>
+          <span data-i18n="controls.pollutant">Pollutant</span>
+          <select id="pollutantSelect">
+            <option value="pm10">PM10</option>
+            <option value="pm25">PM2.5</option>
+            <option value="no2">NO₂</option>
+            <option value="o3">O₃</option>
+            <option value="nox">NOₓ</option>
+            <option value="no">NO</option>
+            <option value="co">CO</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.period">Period</span>
+          <select id="periodSelect">
+            <option value="hour" data-i18n="period.hour">Hourly today</option>
+            <option value="day" data-i18n="period.day">Daily this month</option>
+            <option value="month" data-i18n="period.month">Monthly this year</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.stationType">Station type</span>
+          <select id="typeSelect">
+            <option value="all" data-i18n="type.all">All</option>
+            <option value="traffic" data-i18n="type.traffic">Traffic</option>
+            <option value="background" data-i18n="type.background">Urban background</option>
+            <option value="suburb" data-i18n="type.suburb">Suburban</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.language">Language</span>
+          <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div class="data-stamp" id="dataStamp">Loading official measurements...</div>
+
+    <section class="page active" data-view="overview">
+      <div class="hero-band">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="overview.eyebrow">Environmental operations</p>
+          <h2 data-i18n="overview.heroTitle">Turn official station feeds into a city-level risk view.</h2>
+          <p data-i18n="overview.heroBody">The dashboard combines pollutant readings, the official air-quality index, exceedance data, weather context and station metadata from Berlin's public API.</p>
+          <div class="mini-grid" id="aqiSummary"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="alerts.officialTitle">Official Alerts</h3>
+              <p data-i18n="alerts.latestNotices">Latest notices from the Berlin monitoring network.</p>
+            </div>
+          </div>
+          <div class="signal-list" id="alertPreview"></div>
+        </div>
+      </div>
+
+      <section class="kpi-grid" aria-label="Key metrics">
+        <article class="kpi">
+          <span data-i18n="kpi.average">Average level</span>
+          <strong id="avgValue">-</strong>
+          <small id="avgLabel">Across selected stations</small>
+        </article>
+        <article class="kpi">
+          <span data-i18n="kpi.highest">Highest station</span>
+          <strong id="hotspotValue">-</strong>
+          <small id="hotspotLabel">Current hotspot</small>
+        </article>
+        <article class="kpi">
+          <span data-i18n="kpi.risk">Risk periods</span>
+          <strong id="riskPeriods">-</strong>
+          <small id="riskLabel">Above reference threshold</small>
+        </article>
+        <article class="kpi">
+          <span data-i18n="kpi.trend">Trend</span>
+          <strong id="trendValue">-</strong>
+          <small id="trendLabel">Selected period</small>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="signals.title">Action Signals</h3>
+              <p data-i18n="signals.subtitle">What the current filters imply for an urban operations team.</p>
+            </div>
+          </div>
+          <div class="signal-list" id="signalList"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="mix.title">Pollutant Mix</h3>
+              <p data-i18n="mix.subtitle">Latest average concentration by pollutant.</p>
+            </div>
+          </div>
+          <div class="donut-wrap">
+            <div class="donut" id="mixDonut"></div>
+            <div class="legend" id="mixLegend"></div>
+          </div>
+        </article>
+      </section>
+    </section>
+
+    <section class="page" data-view="stations">
+      <div class="map-layout">
+        <article class="hero-visual" aria-label="Berlin monitoring station map">
+          <div id="stationMap"></div>
+          <div class="map-label">
+            <strong id="selectedStationName">All stations</strong>
+            <span id="selectedStationDetail" data-i18n="map.clickHint">Click a marker or row to isolate it</span>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="stations.detailTitle">Station Detail</h3>
+              <p data-i18n="stations.detailSubtitle">Metadata, components and latest readings.</p>
+            </div>
+          </div>
+          <div class="detail-panel" id="stationDetail"></div>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 data-i18n="stations.rankingTitle">Station Ranking</h3>
+            <p data-i18n="stations.rankingSubtitle">Latest value by monitoring station.</p>
+          </div>
+          <span class="badge" id="stationCount" data-i18n="status.loadingShort">Loading</span>
+        </div>
+        <div class="ranking" id="rankingList"></div>
+      </article>
+    </section>
+
+    <section class="page" data-view="trends">
+      <section class="content-grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="trends.title">Trend</h3>
+              <p id="trendDescription">Average across selected stations.</p>
+            </div>
+          </div>
+          <div class="line-chart" id="trendChart" aria-label="Trend chart"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="trends.snapshotTitle">Period Snapshot</h3>
+              <p data-i18n="trends.snapshotSubtitle">Distribution and data completeness.</p>
+            </div>
+          </div>
+          <div class="metric-list" id="periodSnapshot"></div>
+        </article>
+      </section>
+    </section>
+
+    <section class="page" data-view="limits">
+      <section class="content-grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="limits.annualTitle">Annual Exceedances</h3>
+              <p data-i18n="limits.annualSubtitle">Official exceedance counters for 2026.</p>
+            </div>
+          </div>
+          <div class="ranking" id="exceedanceList"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="limits.summaryTitle">Limit Summary</h3>
+              <p data-i18n="limits.summarySubtitle">Stations and pollutants needing attention.</p>
+            </div>
+          </div>
+          <div class="metric-list" id="limitSummary"></div>
+        </article>
+      </section>
+    </section>
+
+    <section class="page" data-view="weather">
+      <section class="content-grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="weather.contextTitle">Meteorology Context</h3>
+              <p data-i18n="weather.contextSubtitle">Temperature, humidity, wind speed and wind direction from active stations.</p>
+            </div>
+          </div>
+          <div class="weather-grid" id="weatherGrid"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 data-i18n="weather.impactTitle">Air Impact</h3>
+              <p data-i18n="weather.impactSubtitle">How weather can change interpretation.</p>
+            </div>
+          </div>
+          <div class="signal-list" id="weatherSignals"></div>
+        </article>
+      </section>
+    </section>
+
+    <section class="page" data-view="alerts">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 data-i18n="alerts.pageTitle">Official Alerts and Notices</h3>
+            <p data-i18n="alerts.pageSubtitle">Messages published by the Berlin air-quality network.</p>
+          </div>
+        </div>
+        <div class="alert-list" id="alertList"></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
