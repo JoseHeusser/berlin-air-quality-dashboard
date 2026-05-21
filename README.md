@@ -2,7 +2,7 @@
 
 Real-time air-quality monitoring dashboard for Berlin, built on top of the official **Berliner Luftgütemessnetz** (SenMVKU) public API.
 
-> 🔗 **Live:** _[add deployment URL]_
+> 🔗 **Live:** <https://berlin-air-quality-dashboard.vercel.app>
 
 ## What it shows
 
